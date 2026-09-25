@@ -24,6 +24,16 @@
   header h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.01em; }
   header p { margin: 0; color: var(--muted); }
 
+  .pipeline {
+    margin: 24px 0 0; background: #fff; border: 1px solid var(--line);
+    border-radius: 14px; padding: 12px; overflow-x: auto;
+  }
+  .pipeline img { display: block; width: 100%; min-width: 640px; height: auto; }
+  .pipeline figcaption {
+    margin: 12px 4px 2px; color: #3a3a3f; font-size: 14px; line-height: 1.55;
+  }
+  .pipeline figcaption b { color: #1d1d1f; }
+
   .toolbar {
     position: sticky; top: 0; z-index: 5; background: var(--bg);
     display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
@@ -38,7 +48,9 @@
   button:hover { border-color: var(--accent); }
   button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-  .section-title { margin: 36px 0 0; font-size: 20px; letter-spacing: -0.01em; }
+  .section-title { margin: 44px 0 0; font-size: 20px; letter-spacing: -0.01em; }
+  .section-lead { margin: 4px 0 0; font-weight: 600; color: var(--accent); }
+  .section-desc { margin: 6px 0 0; max-width: 820px; color: var(--muted); }
   .grid { display: grid; gap: 20px; margin-top: 16px;
           grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); }
   .card {
@@ -76,6 +88,11 @@
     <p>Each task shows the external camera beside the hand camera, time-aligned to start and end together.</p>
   </header>
 
+  <figure class="pipeline">
+    <img src="images/pipeline.png" alt="Pipeline: human dataset, SkillSeg motion segmentation, embodied primitive motion tokenization (EPMT), and context-conditioned EPMT decoding to humanoid robot actions" width="2600" height="847">
+    <figcaption><b>Framework overview.</b> Our framework learns reusable motion primitives directly from egocentric human videos. SkillSeg first decomposes continuous SE(3) hand trajectories into semantically meaningful motion segments. EPMT then factorizes each segment into translation, aperture, and rotation components and maps them into discrete primitive motion tokens. These tokens form a shared motion representation that bridges human demonstrations and humanoid execution. Conditioned on visual observations and language instructions, CC-EPMT composes the primitive tokens and decodes them into executable humanoid actions.</figcaption>
+  </figure>
+
   <div class="toolbar">
     <span class="spacer"></span>
     <button id="playAll">Play all</button>
@@ -90,7 +107,10 @@
   // To add a task: drop videos/<dir><id>_ext.mp4 and videos/<dir><id>_hand.mp4, then add the id here.
   // The part of the id before the first "_" is dropped from the displayed title.
   const SECTIONS = [
-    { title: "EPMT", tasks: [
+    { title: "EPMT",
+      lead: "The robot's own recorded motion, through EPMT.",
+      desc: "An episode the robot already performed is cut into ~20 decisions, each written as one symbol from a 16-element alphabet, and a 27k-parameter decoder turns those symbols back into motion on the arm. Same robot, same scene — so it asks the narrowest question: does a real manipulation episode survive being compressed to symbols?",
+      tasks: [
       "Articulated_close_a_laptop",
       "Articulated_flip_open_a_diary",
       "Articulated_press_the_stapler",
@@ -102,12 +122,18 @@
       "Basic_stack_two_cubes",
       "Basic_take_out_the_lid_of_the_spray_bottle",
     ]},
-    { title: "Human-to-Robot", tasks: [
+    { title: "Human2Robot",
+      lead: "A human demonstration, through EPMT.",
+      desc: "The decisions come from egocentric video of a person's hand, never a robot. The alphabet and segmenter cross that gap untouched; only the decoder is adapted, by 400 steps of continuation on human decisions. Tests whether decisions made by a human body can be realised by a robot one.",
+      tasks: [
       "Human2Robot_pick_place_food",
       "Human2Robot_stack",
       "Human2Robot_stack_unstack_bowls",
     ]},
-    { title: "CC-EPMT (State-only Closed-loop)", dir: "cc-state-only/", tasks: [
+    { title: "CC-EPMT (state-only)", dir: "cc-state-only/",
+      lead: "The robot's own arm state, through EPMT.",
+      desc: "The first configuration where nothing supplies the symbols — the robot predicts them. Predict a symbol, decode it, execute, re-observe, repeat. No goal and no task model enter the loop: the executed symbol is simply the most likely one from the current state.",
+      tasks: [
       "Articulated_adjust_the_angle_of_a_phone_stand",
       "Articulated_close_refrigerator_door",
       "Articulated_open_the_zipper_of_a_bag",
@@ -116,7 +142,10 @@
       "HRI_hold_a_plastic_bag_and_hand_it_back_to_human",
       "HRI_hold_a_tripod_and_hand_it_back_to_human",
     ]},
-    { title: "CC-EPMT Full (Robot Camera Observation + Hand State)", dir: "cc-full/", tasks: [
+    { title: "CC-EPMT Full", dir: "cc-full/",
+      lead: "The robot's camera and arm state, through EPMT.",
+      desc: "The same closed loop, with the posterior also reading the scene through the robot's own camera and the task name. The only configuration in which the robot sees what it is doing — and the one that settles whether seeing helps.",
+      tasks: [
       "Full_close_fridge",
       "Full_close_phone_booth",
     ]},
@@ -159,7 +188,13 @@
   heading.textContent = section.title;
   const grid = document.createElement("div");
   grid.className = "grid";
-  main.append(heading, grid);
+  const lead = document.createElement("p");
+  lead.className = "section-lead";
+  lead.textContent = section.lead;
+  const desc = document.createElement("p");
+  desc.className = "section-desc";
+  desc.textContent = section.desc;
+  main.append(heading, lead, desc, grid);
 
   for (const id of section.tasks) {
     const [, ...rest] = id.split("_");
