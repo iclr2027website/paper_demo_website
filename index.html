@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TOTA Demos</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70;
+    --line: #e4e4e0; --accent: #2f5bd3; --accent-soft: #e7edfb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416; --card: #1d1d20; --text: #ececef; --muted: #9a9aa2;
+      --line: #2c2c31; --accent: #7c9cff; --accent-soft: #232a40;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 20px 80px; }
+  header h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 16px 0; margin-top: 16px; border-bottom: 1px solid var(--line);
+  }
+  .toolbar .spacer { flex: 1; }
+  button {
+    font: inherit; font-size: 14px; cursor: pointer; color: var(--text);
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px;
+  }
+  button:hover { border-color: var(--accent); }
+  button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .section-title { margin: 36px 0 0; font-size: 20px; letter-spacing: -0.01em; }
+  .grid { display: grid; gap: 20px; margin-top: 16px;
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .card-head { display: flex; align-items: center; gap: 10px; }
+  .card-head h2 { margin: 0; font-size: 16px; font-weight: 600; flex: 1; }
+
+  /* Same height for both views: 9:16 external + 4:3 hand */
+  .pair { display: grid; grid-template-columns: 9fr 21.33fr; gap: 8px; align-items: start; }
+  .view { position: relative; }
+  .view video {
+    width: 100%; display: block; border-radius: 8px; background: #000;
+  }
+  .view.ext video { aspect-ratio: 9 / 16; object-fit: cover; }
+  .view.hand video { aspect-ratio: 4 / 3; object-fit: cover; }
+  .label {
+    position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 600;
+    color: #fff; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 999px;
+  }
+  .controls { display: flex; gap: 6px; }
+  .controls button { padding: 4px 12px; font-size: 13px; }
+
+  @media (max-width: 520px) {
+    .pair { grid-template-columns: 1fr 2.37fr; }
+  }
+  footer { margin-top: 40px; color: var(--muted); font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>TOTA Task Demonstrations</h1>
+    <p>Each task shows the external camera beside the hand camera, time-aligned to start and end together.</p>
+  </header>
+
+  <div class="toolbar">
+    <span class="spacer"></span>
+    <button id="playAll">Play all</button>
+    <button id="pauseAll">Pause all</button>
+  </div>
+
+  <main id="main"></main>
+  <footer>Videos load as you scroll and pause when out of view.</footer>
+</div>
+
+<script>
+  // To add a task: drop videos/<dir><id>_ext.mp4 and videos/<dir><id>_hand.mp4, then add the id here.
+  // The part of the id before the first "_" is dropped from the displayed title.
+  const SECTIONS = [
+    { title: "EPMT", tasks: [
+      "Articulated_close_a_laptop",
+      "Articulated_flip_open_a_diary",
+      "Articulated_press_the_stapler",
+      "Articulated_push_a_button",
+      "Articulated_rotate_chair",
+      "Basic_place_a_cube_in_a_bag",
+      "Basic_pour_sunflower_seeds_on_plate",
+      "Basic_push_duck",
+      "Basic_stack_two_cubes",
+      "Basic_take_out_the_lid_of_the_spray_bottle",
+    ]},
+    { title: "Human-to-Robot", tasks: [
+      "Human2Robot_pick_place_food",
+      "Human2Robot_stack",
+      "Human2Robot_stack_unstack_bowls",
+    ]},
+    { title: "CC-EPMT (State-only Closed-loop)", dir: "cc-state-only/", tasks: [
+      "Articulated_adjust_the_angle_of_a_phone_stand",
+      "Articulated_close_refrigerator_door",
+      "Articulated_open_the_zipper_of_a_bag",
+      "Basic_drag_a_white_board",
+      "HRI_handover_dumpling",
+      "HRI_hold_a_plastic_bag_and_hand_it_back_to_human",
+      "HRI_hold_a_tripod_and_hand_it_back_to_human",
+    ]},
+    { title: "CC-EPMT Full (Robot Camera Observation + Hand State)", dir: "cc-full/", tasks: [
+      "Full_close_fridge",
+      "Full_close_phone_booth",
+    ]},
+  ];
+
+  const main = document.getElementById("main");
+  const cards = [];
+
+  // The two recordings differ in length, so the hand video is time-scaled to
+  // the external one: both start and end together, and the external video
+  // drives the hand video's position.
+  function syncPair(ext, hand) {
+    let ratio = 1;
+    const setRate = () => {
+      if (ext.duration && hand.duration) {
+        ratio = hand.duration / ext.duration;
+        hand.playbackRate = ratio;
+      }
+    };
+    ext.addEventListener("loadedmetadata", setRate);
+    hand.addEventListener("loadedmetadata", setRate);
+    ext.addEventListener("play", () => hand.play().catch(() => {}));
+    ext.addEventListener("pause", () => hand.pause());
+    ext.addEventListener("timeupdate", () => {
+      if (!hand.duration) return;
+      const target = Math.min(ext.currentTime * ratio, hand.duration - 0.05);
+      if (Math.abs(hand.currentTime - target) > 0.15) hand.currentTime = target;
+      if (!ext.paused && hand.paused) hand.play().catch(() => {});
+    });
+  }
+
+  function prettify(s) {
+    const t = s.replace(/_/g, " ");
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  for (const section of SECTIONS) {
+  const heading = document.createElement("h2");
+  heading.className = "section-title";
+  heading.textContent = section.title;
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  main.append(heading, grid);
+
+  for (const id of section.tasks) {
+    const [, ...rest] = id.split("_");
+    const card = document.createElement("section");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="card-head">
+        <h2>${prettify(rest.join("_"))}</h2>
+      </div>
+      <div class="pair">
+        <div class="view ext">
+          <video muted loop playsinline preload="none" data-src="videos/${section.dir || ""}${id}_ext.mp4"></video>
+          <span class="label">External camera</span>
+        </div>
+        <div class="view hand">
+          <video muted playsinline preload="none" data-src="videos/${section.dir || ""}${id}_hand.mp4"></video>
+          <span class="label">Head camera</span>
+        </div>
+      </div>
+      <div class="controls">
+        <button data-act="toggle">Pause</button>
+        <button data-act="restart">Restart</button>
+      </div>`;
+    grid.appendChild(card);
+
+    const vids = [...card.querySelectorAll("video")];
+    // Always silent: force mute and undo any attempt to unmute.
+    vids.forEach(v => {
+      v.muted = true; v.volume = 0;
+      v.addEventListener("volumechange", () => { if (!v.muted || v.volume) { v.muted = true; v.volume = 0; } });
+    });
+    syncPair(vids[0], vids[1]);
+    const toggle = card.querySelector('[data-act="toggle"]');
+    const state = { card, vids, toggle, userPaused: false, visible: false };
+    cards.push(state);
+
+    toggle.onclick = () => {
+      if (vids[0].paused) { state.userPaused = false; play(state); }
+      else { state.userPaused = true; pause(state); }
+    };
+    card.querySelector('[data-act="restart"]').onclick = () => {
+      vids.forEach(v => { v.currentTime = 0; });
+      state.userPaused = false; play(state);
+    };
+  }
+  }
+
+  function load(s) {
+    s.vids.forEach(v => { if (!v.src) { v.src = v.dataset.src; } });
+  }
+  function play(s) {
+    load(s);
+    s.vids[0].play().catch(() => {});
+    s.toggle.textContent = "Pause";
+  }
+  function pause(s) {
+    s.vids[0].pause();
+    s.toggle.textContent = "Play";
+  }
+  // Free the network connection and memory of pairs scrolled far away.
+  function unload(s) {
+    pause(s);
+    s.vids.forEach(v => { if (v.src) { v.removeAttribute("src"); v.load(); } });
+  }
+
+  // Autoplay pairs in view, pause those scrolled away.
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      const s = cards.find(c => c.card === e.target);
+      s.visible = e.isIntersecting;
+      if (s.visible && !s.userPaused) play(s);
+      else if (!s.visible) unload(s);
+    }
+  }, { rootMargin: "200px 0px" });
+  cards.forEach(s => io.observe(s.card));
+
+  document.getElementById("playAll").onclick = () =>
+    cards.forEach(s => { s.userPaused = false; if (s.visible) play(s); });
+  document.getElementById("pauseAll").onclick = () =>
+    cards.forEach(s => { s.userPaused = true; pause(s); });
+</script>
+</body>
+</html>
