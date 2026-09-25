@@ -74,6 +74,9 @@
   }
   .controls { display: flex; gap: 6px; }
   .controls button { padding: 4px 12px; font-size: 13px; }
+  .controls .spacer { flex: 1; }
+  .speed { display: flex; gap: 4px; }
+  .speed button { padding: 4px 10px; min-width: 40px; }
 
   @media (max-width: 520px) {
     .pair { grid-template-columns: 1fr 2.37fr; }
@@ -162,14 +165,13 @@
 
   // The two recordings differ in length, so the hand video is time-scaled to
   // the external one: both start and end together, and the external video
-  // drives the hand video's position.
+  // drives the hand video's position. Returns a setter for the pair's speed.
   function syncPair(ext, hand) {
-    let ratio = 1;
+    let ratio = 1, speed = 1;
     const setRate = () => {
-      if (ext.duration && hand.duration) {
-        ratio = hand.duration / ext.duration;
-        hand.playbackRate = ratio;
-      }
+      if (ext.duration && hand.duration) ratio = hand.duration / ext.duration;
+      ext.playbackRate = speed;
+      hand.playbackRate = ratio * speed;
     };
     ext.addEventListener("loadedmetadata", setRate);
     hand.addEventListener("loadedmetadata", setRate);
@@ -178,9 +180,10 @@
     ext.addEventListener("timeupdate", () => {
       if (!hand.duration) return;
       const target = Math.min(ext.currentTime * ratio, hand.duration - 0.05);
-      if (Math.abs(hand.currentTime - target) > 0.15) hand.currentTime = target;
+      if (Math.abs(hand.currentTime - target) > 0.15 * speed) hand.currentTime = target;
       if (!ext.paused && hand.paused) hand.play().catch(() => {});
     });
+    return s => { speed = s; setRate(); };
   }
 
   function prettify(s) {
@@ -223,6 +226,12 @@
       <div class="controls">
         <button data-act="toggle">Pause</button>
         <button data-act="restart">Restart</button>
+        <span class="spacer"></span>
+        <div class="speed" role="group" aria-label="Playback speed">
+          <button data-speed="1" class="active">1×</button>
+          <button data-speed="2">2×</button>
+          <button data-speed="4">4×</button>
+        </div>
       </div>`;
     grid.appendChild(card);
 
@@ -232,7 +241,12 @@
       v.muted = true; v.volume = 0;
       v.addEventListener("volumechange", () => { if (!v.muted || v.volume) { v.muted = true; v.volume = 0; } });
     });
-    syncPair(vids[0], vids[1]);
+    const setSpeed = syncPair(vids[0], vids[1]);
+    const speedBtns = [...card.querySelectorAll("[data-speed]")];
+    speedBtns.forEach(b => b.onclick = () => {
+      setSpeed(Number(b.dataset.speed));
+      speedBtns.forEach(x => x.classList.toggle("active", x === b));
+    });
     const toggle = card.querySelector('[data-act="toggle"]');
     const state = { card, vids, toggle, userPaused: false, visible: false };
     cards.push(state);
