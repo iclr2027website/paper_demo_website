@@ -160,6 +160,7 @@
   const bust = url => `${url}?v=${VERSION}`;
   document.querySelectorAll("img[data-src]").forEach(img => { img.src = bust(img.dataset.src); });
 
+  const DEFAULT_SPEED = 4;
   const main = document.getElementById("main");
   const cards = [];
 
@@ -167,7 +168,7 @@
   // the external one: both start and end together, and the external video
   // drives the hand video's position. Returns a setter for the pair's speed.
   function syncPair(ext, hand) {
-    let ratio = 1, speed = 1;
+    let ratio = 1, speed = DEFAULT_SPEED;
     const setRate = () => {
       if (ext.duration && hand.duration) ratio = hand.duration / ext.duration;
       ext.playbackRate = speed;
@@ -228,9 +229,9 @@
         <button data-act="restart">Restart</button>
         <span class="spacer"></span>
         <div class="speed" role="group" aria-label="Playback speed">
-          <button data-speed="1" class="active">1×</button>
+          <button data-speed="1">1×</button>
           <button data-speed="2">2×</button>
-          <button data-speed="4">4×</button>
+          <button data-speed="4" class="active">4×</button>
         </div>
       </div>`;
     grid.appendChild(card);
